@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
-st.title("📊 Универсальный прогноз нагрузки (ML)")
+st.title("📊 Универсальная система прогнозирования (ML)")
 
 # =========================
 # 📂 ЗАГРУЗКА ДАННЫХ
@@ -18,84 +18,70 @@ else:
     st.info("Используется стандартный dataset")
 
 # =========================
-# 🧠 ПОИСК КОЛОНОК
+# 👀 ПРОСМОТР ДАННЫХ
 # =========================
-col_map = {
-    "hr": ["hr", "hour", "Hour", "time_hour"],
-    "weekday": ["weekday", "day", "day_of_week", "week_day"],
-    "cnt": ["cnt", "count", "traffic", "value", "demand"]
-}
+st.subheader("📄 Предпросмотр данных")
+st.dataframe(df.head())
 
-def find_column(df, options):
-    for col in options:
-        if col in df.columns:
-            return col
-    return None
+# =========================
+# 🧠 ВЫБОР КОЛОНОК (БЕЗ ОГРАНИЧЕНИЙ)
+# =========================
+st.subheader("🧠 Выберите колонки для модели")
 
-hr_col = find_column(df, col_map["hr"])
-weekday_col = find_column(df, col_map["weekday"])
-cnt_col = find_column(df, col_map["cnt"])
+columns = df.columns.tolist()
 
-if hr_col is None or weekday_col is None or cnt_col is None:
-    st.error("❌ Нужные колонки не найдены! Требуются hr, weekday, cnt (или аналоги)")
+target_col = st.selectbox("🎯 Целевая переменная (что предсказываем)", columns)
+
+feature_cols = st.multiselect(
+    "📌 Признаки (что используем для прогноза)",
+    [col for col in columns if col != target_col]
+)
+
+if len(feature_cols) == 0:
+    st.warning("Выберите хотя бы 1 признак")
     st.stop()
 
 # =========================
-# 🔄 ПЕРЕИМЕНОВАНИЕ
+# 🧹 УДАЛЕНИЕ ПУСТЫХ ДАННЫХ
 # =========================
-df = df[[hr_col, weekday_col, cnt_col]]
-
-df.rename(columns={
-    hr_col: "hr",
-    weekday_col: "weekday",
-    cnt_col: "cnt"
-}, inplace=True)
+df = df[feature_cols + [target_col]].dropna()
 
 # =========================
-# 🧹 FEATURE ENGINEERING
+# 🤖 МОДЕЛЬ
 # =========================
-df['is_weekend'] = df['weekday'].apply(lambda x: 1 if x >= 5 else 0)
-df['lag_1'] = df['cnt'].shift(1)
-df['lag_24'] = df['cnt'].shift(24)
-df = df.dropna()
-
-# =========================
-# 🤖 MODEL
-# =========================
-X = df[['hr', 'weekday', 'is_weekend', 'lag_1', 'lag_24']]
-y = df['cnt']
+X = df[feature_cols]
+y = df[target_col]
 
 model = RandomForestRegressor(n_estimators=100, random_state=42)
 model.fit(X, y)
 
-# =========================
-# 📊 GRAPH
-# =========================
-st.subheader("📈 Нагрузка")
-st.line_chart(df['cnt'].tail(200))
+st.success("Модель обучена!")
 
 # =========================
-# ⚙️ INPUT
+# 📊 ГРАФИК
 # =========================
-st.subheader("⚙️ Введите параметры")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    hr = st.slider("Час", 0, 23, 12)
-    weekday = st.slider("День недели (0=Пн, 6=Вс)", 0, 6, 3)
-
-with col2:
-    lag_1 = st.number_input("Нагрузка за прошлый час", value=100.0)
-    lag_24 = st.number_input("Нагрузка за прошлые сутки", value=100.0)
-
-is_weekend = 1 if weekday >= 5 else 0
+st.subheader("📈 Данные (целевая переменная)")
+st.line_chart(df[target_col].tail(200))
 
 # =========================
-# 🔮 PREDICTION
+# ⚙️ ВВОД ДАННЫХ ДЛЯ ПРОГНОЗА
+# =========================
+st.subheader("⚙️ Ввод для предсказания")
+
+input_data = []
+
+cols1 = st.columns(min(len(feature_cols), 3))
+
+for i, col in enumerate(feature_cols):
+    with cols1[i % len(cols1)]:
+        val = st.number_input(f"{col}", value=float(df[col].mean()))
+        input_data.append(val)
+
+# =========================
+# 🔮 ПРЕДСКАЗАНИЕ
 # =========================
 if st.button("🔮 Предсказать"):
-    data = np.array([[hr, weekday, is_weekend, lag_1, lag_24]])
+    data = np.array([input_data])
     pred = model.predict(data)[0]
 
-    st.success(f"Прогноз нагрузки: {pred:.2f}")
+    st.success(f"📊 Прогноз: {pred:.2f}")
