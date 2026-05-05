@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score
 
 st.title("📊 Универсальная система прогнозирования (ML)")
 
@@ -24,16 +26,16 @@ st.subheader("📄 Предпросмотр данных")
 st.dataframe(df.head())
 
 # =========================
-# 🧠 ВЫБОР КОЛОНОК (БЕЗ ОГРАНИЧЕНИЙ)
+# 🧠 ВЫБОР КОЛОНОК
 # =========================
 st.subheader("🧠 Выберите колонки для модели")
 
 columns = df.columns.tolist()
 
-target_col = st.selectbox("🎯 Целевая переменная (что предсказываем)", columns)
+target_col = st.selectbox("🎯 Целевая переменная", columns)
 
 feature_cols = st.multiselect(
-    "📌 Признаки (что используем для прогноза)",
+    "📌 Признаки",
     [col for col in columns if col != target_col]
 )
 
@@ -42,39 +44,62 @@ if len(feature_cols) == 0:
     st.stop()
 
 # =========================
-# 🧹 УДАЛЕНИЕ ПУСТЫХ ДАННЫХ
+# 🧹 ПОДГОТОВКА ДАННЫХ
 # =========================
 df = df[feature_cols + [target_col]].dropna()
+
+# 🔥 обработка категориальных данных
+df = pd.get_dummies(df)
+
+# =========================
+# 📦 X и y
+# =========================
+X = df.drop(target_col, axis=1)
+y = df[target_col]
+
+# =========================
+# ✂️ TRAIN / TEST SPLIT
+# =========================
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
 # =========================
 # 🤖 МОДЕЛЬ
 # =========================
-X = df[feature_cols]
-y = df[target_col]
-
 model = RandomForestRegressor(n_estimators=100, random_state=42)
-model.fit(X, y)
-
-st.success("Модель обучена!")
+model.fit(X_train, y_train)
 
 # =========================
-# 📊 ГРАФИК
+# 📊 ОЦЕНКА МОДЕЛИ
 # =========================
-st.subheader("📈 Данные (целевая переменная)")
+preds = model.predict(X_test)
+
+mae = mean_absolute_error(y_test, preds)
+r2 = r2_score(y_test, preds)
+
+st.subheader("📊 Метрики модели")
+st.write(f"📉 MAE: {mae:.2f}")
+st.write(f"📈 R²: {r2:.2f}")
+
+# =========================
+# 📈 ГРАФИК
+# =========================
+st.subheader("📈 Целевая переменная")
 st.line_chart(df[target_col].tail(200))
 
 # =========================
-# ⚙️ ВВОД ДАННЫХ ДЛЯ ПРОГНОЗА
+# ⚙️ ВВОД ДЛЯ ПРЕДСКАЗАНИЯ
 # =========================
 st.subheader("⚙️ Ввод для предсказания")
 
 input_data = []
 
-cols1 = st.columns(min(len(feature_cols), 3))
+cols1 = st.columns(3)
 
-for i, col in enumerate(feature_cols):
-    with cols1[i % len(cols1)]:
-        val = st.number_input(f"{col}", value=float(df[col].mean()))
+for i, col in enumerate(X.columns):
+    with cols1[i % 3]:
+        val = st.number_input(col, value=float(df[col].mean()))
         input_data.append(val)
 
 # =========================
