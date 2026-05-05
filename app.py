@@ -3,43 +3,51 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
-# Заголовок
 st.title("📊 Прогноз нагрузки трафика")
 
-# Загрузка данных
-@st.cache_data
-def load_data():
+# =========================
+# 📂 ЗАГРУЗКА ДАННЫХ
+# =========================
+uploaded_file = st.file_uploader("📂 Загрузите CSV файл (или используем дефолтный)", type=["csv"])
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.success("Файл загружен пользователем")
+else:
     df = pd.read_csv("hour.csv")
-    df = df[['hr', 'weekday', 'cnt']]
-    
-    df['is_weekend'] = df['weekday'].apply(lambda x: 1 if x >= 5 else 0)
-    df['lag_1'] = df['cnt'].shift(1)
-    df['lag_24'] = df['cnt'].shift(24)
-    
-    df = df.dropna()
-    return df
+    st.info("Используется стандартный dataset (hour.csv)")
 
-df = load_data()
+# =========================
+# 🧹 ОБРАБОТКА ДАННЫХ
+# =========================
+df = df[['hr', 'weekday', 'cnt']]
 
+df['is_weekend'] = df['weekday'].apply(lambda x: 1 if x >= 5 else 0)
+df['lag_1'] = df['cnt'].shift(1)
+df['lag_24'] = df['cnt'].shift(24)
+
+df = df.dropna()
+
+# =========================
+# 🤖 МОДЕЛЬ
+# =========================
 X = df[['hr', 'weekday', 'is_weekend', 'lag_1', 'lag_24']]
 y = df['cnt']
 
-# Обучение модели
-@st.cache_resource
-def train_model():
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X, y)
-    return model
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X, y)
 
-model = train_model()
-
-# График
+# =========================
+# 📈 ГРАФИК
+# =========================
 st.subheader("📈 Нагрузка (последние 200 часов)")
 st.line_chart(df['cnt'].tail(200))
 
 st.info("Модель учитывает время и прошлые значения нагрузки")
 
-# Ввод
+# =========================
+# ⚙️ ВВОД ДАННЫХ
+# =========================
 st.subheader("⚙️ Введите параметры")
 
 col1, col2 = st.columns(2)
@@ -54,9 +62,11 @@ with col2:
 
 is_weekend = 1 if weekday >= 5 else 0
 
-# Предсказание
+# =========================
+# 🔮 ПРЕДСКАЗАНИЕ
+# =========================
 if st.button("🔮 Предсказать"):
     data = np.array([[hr, weekday, is_weekend, lag_1, lag_24]])
     pred = model.predict(data)[0]
 
-    st.success(f"Прогноз: {pred:.2f}")
+    st.success(f"Прогноз нагрузки: {pred:.2f}")
